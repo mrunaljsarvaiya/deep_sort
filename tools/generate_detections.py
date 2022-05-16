@@ -6,9 +6,14 @@ import numpy as np
 import cv2
 from matplotlib import pyplot as plt
 
-# import tensorflow as tf
+import tensorflow as tf2
+from tensorflow import keras as keras2
+from tensorflow.keras.models import Sequential as Sequential2
+from tensorflow.keras.models import Model as Model2
+
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
+tf2.compat.v1.enable_eager_execution()
 
 def _run_in_batches(f, data_dict, out, batch_size):
     data_len = len(out)
@@ -58,7 +63,7 @@ def extract_image_patch(image, bbox, patch_shape):
 
     # convert to top left, bottom right
     bbox[2:] += bbox[:2]
-    bbox = bbox.astype(np.int)
+    bbox = bbox.astype(np.int64)
 
     # clip at image boundaries
     bbox[:2] = np.maximum(0, bbox[:2])
@@ -72,6 +77,7 @@ def extract_image_patch(image, bbox, patch_shape):
 
 
 class ImageEncoder(object):
+    # 128 dim feature vector
 
     def __init__(self, checkpoint_filename, input_name="images",
                  output_name="features"):
@@ -89,6 +95,7 @@ class ImageEncoder(object):
         assert len(self.input_var.get_shape()) == 4
         self.feature_dim = self.output_var.get_shape().as_list()[-1]
         self.image_shape = self.input_var.get_shape().as_list()[1:]
+        print("here")
 
     def __call__(self, data_x, batch_size=32):
         out = np.zeros((len(data_x), self.feature_dim), np.float32)
@@ -97,10 +104,28 @@ class ImageEncoder(object):
             {self.input_var: data_x}, out, batch_size)
         return out
 
+class CustomImageEncoder(object):
+    # 128 dim feature vector
+
+    def __init__(self, checkpoint_filename, input_name="images",
+                 output_name="features"):
+        img_size = (128, 64, 3)
+        self.sess = tf2.compat.v1.Session()
+        self.model = tf2.keras.applications.resnet.ResNet101(weights=None, include_top=True, input_shape=(img_size))
+        self.model.load_weights("/home/peanut/Documents/deep_sort/custom_model/mask_rcnn_coco.h5", by_name=True)
+        tf2.compat.v1.enable_eager_execution()
+
+        self.feature_dim = 1000
+        self.image_shape = [128, 64]
+
+    def __call__(self, data_x, batch_size=32):
+        out = self.model(data_x).numpy().astype(np.float32)
+        return out
 
 def create_box_encoder(model_filename, input_name="images",
                        output_name="features", batch_size=32):
-    image_encoder = ImageEncoder(model_filename, input_name, output_name)
+    # image_encoder = ImageEncoder(model_filename, input_name, output_name)
+    image_encoder = CustomImageEncoder(model_filename, input_name, output_name)
     image_shape = image_encoder.image_shape
 
     def encoder(image, boxes):
@@ -162,10 +187,10 @@ def generate_detections(encoder, mot_dir, output_dir, detection_dir=None):
         detections_in = np.loadtxt(detection_file, delimiter=',')
         detections_out = []
 
-        frame_indices = detections_in[:, 0].astype(np.int)
-        min_frame_idx = frame_indices.astype(np.int).min()
-        max_frame_idx = frame_indices.astype(np.int).max()
-        for frame_idx in range(min_frame_idx, max_frame_idx + 1):
+        frame_indices = detections_in[:, 0].astype(np.int64)
+        min_frame_idx = frame_indices.astype(np.int64).min()
+        max_frame_idx = frame_indices.astype(np.int64).max()
+        for frame_idx in range(min_frame_idx, max_frame_idx):
             print("Frame %05d/%05d" % (frame_idx, max_frame_idx))
             mask = frame_indices == frame_idx
             rows = detections_in[mask]
