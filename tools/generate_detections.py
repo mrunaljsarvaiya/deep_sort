@@ -111,7 +111,7 @@ class CustomImageEncoder(object):
                  output_name="features"):
         img_size = (128, 64, 3)
         self.sess = tf2.compat.v1.Session()
-        self.model = tf2.keras.applications.resnet.ResNet101(weights=None, include_top=True, input_shape=(img_size))
+        self.model = self.resnet18()
         self.model.load_weights("/home/peanut/Documents/deep_sort/custom_model/mask_rcnn_coco.h5", by_name=True)
         tf2.compat.v1.enable_eager_execution()
 
